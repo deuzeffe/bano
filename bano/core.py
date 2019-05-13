@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 # coding: UTF-8
-from pg_connexion import get_pgc
-from pg_connexion import get_pgc_layers
-from outils_de_gestion import batch_start_log
-from outils_de_gestion import batch_end_log
 import os,os.path
 import sys
 import time
 import xml.etree.ElementTree as ET
+
+from pg_connexion import get_pgc
+from pg_connexion import get_pgc_layers
+from outils_de_gestion import batch_start_log
+from outils_de_gestion import batch_end_log
+
+from .helpers import find_cp_in_tags
+
 
 os.umask(0000)
 
@@ -311,12 +315,7 @@ class Pg_hsnr:
         if 'ref:FR:FANTOIR' in self.tags and len(self.tags['ref:FR:FANTOIR']) == 10 and self.tags['ref:FR:FANTOIR'][0:5] == code_insee:
             self.fantoir = self.tags['ref:FR:FANTOIR']
 
-def find_cp_in_tags(tags):
-    code_postal = ''
-    if 'addr:postcode' in tags : code_postal = tags['addr:postcode']
-    if code_postal == '' and 'postal_code' in tags : code_postal = tags['postal_code']
-    return code_postal
-    
+
 def add_fantoir_to_hsnr():
     for v in adresses.a:
         if v in dicts.fantoir:
@@ -766,7 +765,7 @@ def tags_list_as_dict(ltags):
         res[ltags[i*2]] = ltags[i*2+1]
     return res
 
-def main(args):
+def process(code_insee_, source_, skip_cache):
     global source,batch_id
     global pgc,pgcl
     global code_insee,code_cadastre,code_dept
@@ -780,26 +779,18 @@ def main(args):
     schema_cible = 'public'
     if ('SCHEMA_CIBLE' in os.environ) : schema_cible = (os.environ['SCHEMA_CIBLE'])
 
-    use_cache = True
+    use_cache = skip_cache
 
     debut_total = time.time()
-    usage = 'USAGE : python addr_cad_2_db.py <code INSEE> <OSM|CADASTRE> {use_cache=True}'
-    if len(args) < 3:
-        print(usage)
-        os._exit(0)
-    if len(args) > 3:
-        use_cache = args[3]
-    source = args[2].upper()
-    if source not in ['OSM','CADASTRE']:
-        print(usage)
-        os._exit(0)
+
+    source = source_.upper()
+    code_insee = code_insee_
 
     adresses = Adresses()
 
     pgc = get_pgc()
     pgcl = get_pgc_layers()
 
-    code_insee = args[1]
     code_dept = get_short_code_dept_from_insee(code_insee)
 
     batch_id = batch_start_log(source,'loadCumul',code_insee)
